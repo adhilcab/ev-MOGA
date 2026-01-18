@@ -1,11 +1,3 @@
-# ------------------------------------------------------------------
-'''
-Functions to work with results from the ev-MOGA algorithm:
-
-    - dominanceCone() # Xavi Blasco
-    - executa_PD() # Returns the indexes sorted according to preferences
-    
-'''
 
 # ------------------------------------------------------------------
 
@@ -19,6 +11,17 @@ from matplotlib.ticker import ScalarFormatter
 
 import plotly.express as px
 import plotly.graph_objects as go
+
+# ------------------------------------------------------------------
+
+def show_fig(block=False, pause=0.001):
+    """
+    Displays the figure without blocking execution, and gives the backend GUI time 
+    to process events for the window to appear.
+    """
+    plt.show(block=block)
+    if not block:
+        plt.pause(pause)
 
 # ------------------------------------------------------------------
 
@@ -147,9 +150,7 @@ def load_eMOGA(mat_file_name: str, verbose=True) -> dict:
         print(f"\nDescription: '{eMOGA['description']}'")
 
         print(f"\nThe Pareto frontier contains {eMOGA['coste_A'].shape[0]} optimal solutions after {eMOGA['gen_counter']} generations (of {eMOGA['Generations']} planned)")
-
-        print(f"Nind_A = {eMOGA['Nind_A']} individuos",)
-        eMOGA['Nind_A'] = eMOGA['ele_A'].shape[0] # OJORRLLL a Eurostoxx50 original
+        # print(f"\nNind_A = {eMOGA['Nind_A']} efficient solutions",)
 
         if 'profiles' in eMOGA:
             print(f"\nNumber of profiles: {len(eMOGA['profiles'])}:\n") 
@@ -159,6 +160,8 @@ def load_eMOGA(mat_file_name: str, verbose=True) -> dict:
                         print(f"  Profile {i+1}: '{profile[key]}'")
         else:
             print("\nNo profiles defined yet")
+
+        print("\n\n")
 
     return eMOGA
 
@@ -213,7 +216,9 @@ def get_preference_profile_solutions(eMOGA, verbose=True):
     if 'profiles' not in eMOGA:
         eMOGA['profiles'] = [{
             'Name': 'Optimum',
-            'Preferences': [1 for i in range(n_obj * (n_obj - 1) // 2)],
+            'Method': 'Preference Directions',
+            'Label': 'OPT',
+            'Mp': get_Mp(n_obj),
             'idx': idx[0],
             'x': eMOGA['ele_A'][idx[0], :],
             'z': eMOGA['coste_A'][idx[0], :] * eMOGA['param']['signs']
@@ -222,15 +227,19 @@ def get_preference_profile_solutions(eMOGA, verbose=True):
         if 'optimum' not in [p['Name'].lower() for p in eMOGA['profiles']]:
             eMOGA['profiles'].append({
                 'Name': 'Optimum',
-                'Preferences': [1 for i in range(n_obj * (n_obj - 1) // 2)],
+                'Method': 'Preference Directions',
+                'Label': 'OPT',
+                'Mp': get_Mp(n_obj),
             })
         for p in eMOGA['profiles']:
+            if 'Label' not in p:
+                p['Label'] = p['Name'][:3].upper()
             if 'idx' not in p:
-                idx, _, _ = preference_directions(eMOGA['coste_A'], p['Preferences'])
-                p['idx'] = idx[0]
-                p['x'] = eMOGA['ele_A'][idx[0], :]
-                p['z'] = eMOGA['coste_A'][idx[0], :] * eMOGA['param']['signs']
-
+                if p['Method'].lower() == 'preference directions':
+                    idx, _, _ = preference_directions(eMOGA['coste_A'], Mp=p['Mp'])
+                    p['idx'] = idx[0]
+                    p['x'] = eMOGA['ele_A'][idx[0], :]
+                    p['z'] = eMOGA['coste_A'][idx[0], :] * eMOGA['param']['signs']
 
     if verbose:
         
@@ -244,10 +253,9 @@ def get_preference_profile_solutions(eMOGA, verbose=True):
 
             print("\n------------------------------------------------")
 
-            print(f"\nProfile: '{p['Name']}'")
+            print(f"\nProfile: '{p['Name']}'\nLabel: '{p['Label']}'")
             print(f"\nx =\n {np.array2string(p['x'], formatter={'float_kind': lambda x: f'{x:.6g}'})}")
             print(f"\nz = {np.array2string(p['z'], formatter={'float_kind': lambda x: f'{x:.3g}'})}")
-
 
     return eMOGA
 
@@ -459,7 +467,7 @@ def plot_2D_projections(eMOGA, pairings=((1, 0), (2, 0), (1, 2)),
                     color_opt_i = color_opt
                 
                 ax.scatter(x=pfront[idx, i], y=pfront[idx, j], s=opt_size, c='red', edgecolor='None', marker='.', zorder=3)
-                ax.text(pfront[idx, i] + np.abs(incx), pfront[idx, j], p['Name'], fontsize=fontSize_labels, color='black', ha='left', va='center', fontweight='light', zorder=3)
+                ax.text(pfront[idx, i] + np.abs(incx), pfront[idx, j], p['Label'], fontsize=fontSize_labels, color='black', ha='left', va='center', fontweight='light', zorder=3)
                 
                 if p['Name'].lower() == 'optimum':
                     optims = np.concatenate([np.array([z0]), np.array([pfront[idx, :]])], axis=0)
@@ -467,7 +475,17 @@ def plot_2D_projections(eMOGA, pairings=((1, 0), (2, 0), (1, 2)),
                     optims = np.concatenate([np.array([znadir]), np.array([pfront[idx, :]])], axis=0)
                     ax.plot(optims[:, i], optims[:, j], lw=0.2, c='black')
 
-    return # eMOGA
+        if 'limits_2D' in graph_options:            
+            if 'x_limits' in graph_options['limits_2D']:
+                ax.set_xlim(graph_options['limits_2D']['x_limits'][k])
+            if 'y_limits' in graph_options['limits_2D']:
+                ax.set_ylim(graph_options['limits_2D']['y_limits'][k])
+
+        # print(f"parella: {k}, xlim: {ax.get_xlim():.1e}, ylim: {ax.get_ylim():.1e}")
+
+    show_fig(block=False)
+
+    return fig
 
 
 # ------------------------------------------------------------------
@@ -509,7 +527,6 @@ def plot_3D_Pareto_Front(eMOGA, plot_optims=True, cmap='winter'):
     znadir = eMOGA['z_nadir']
     color = eMOGA['color']
 
-
     if 'description' in eMOGA:
         description = eMOGA['description']
     else:
@@ -527,8 +544,8 @@ def plot_3D_Pareto_Front(eMOGA, plot_optims=True, cmap='winter'):
 
         for p in eMOGA['profiles']:
             idx = p['idx']
-            ax.scatter(pfront[idx, obj_ord[0]], pfront[idx, obj_ord[1]], pfront[idx, obj_ord[2]], s=opt_size, edgecolor='None', marker='.', c='blue', zorder=3)
-            ax.text(pfront[idx, obj_ord[0]], pfront[idx, obj_ord[1]], pfront[idx, obj_ord[2]], p['Name'], fontsize=9, color='black', ha='left', va='center', fontweight='light', zorder=3)
+            ax.scatter(pfront[idx, obj_ord[0]], pfront[idx, obj_ord[1]], pfront[idx, obj_ord[2]], s=opt_size, edgecolor='None', marker='.', c=color_opt, zorder=3)
+            ax.text(pfront[idx, obj_ord[0]], pfront[idx, obj_ord[1]], pfront[idx, obj_ord[2]], p['Label'], fontsize=9, color='black', ha='left', va='center', fontweight='light', zorder=3)
 
             if p['Name'].lower() == 'optimum':
                 optims = np.concatenate([np.array([z0]), np.array([pfront[idx, :]])], axis=0)
@@ -574,6 +591,8 @@ def plot_3D_Pareto_Front(eMOGA, plot_optims=True, cmap='winter'):
     
     fig.suptitle(superior_title, fontsize=12, y=0.85, va="top")
 
+    show_fig(block=False)
+
     return fig
 
 # ------------------------------------------------------------------
@@ -591,24 +610,24 @@ def plot_3D_Pareto_Front_plotly(eMOGA, plot_optims=True, cmap='winter'):
     color_opt = 'red'
 
     if 'graph options' in eMOGA:
-        
         graph_options = eMOGA['graph options'].copy()
+    else:
+        graph_options = dict()
 
-        if 'obj_ord_3D' in graph_options:
-            obj_ord = graph_options['obj_ord_3D']
-        else:
-            obj_ord = [0, 1, 2]
-        if 'dot_size_3D' in graph_options:
-            dot_size = graph_options['dot_size_3D']
-        else:
-            dot_size = 1
-        if 'opt_dot_size_factor_3D' in graph_options:
-            opt_size = dot_size * graph_options['opt_dot_size_factor_3D']
-        else:
-            opt_size = dot_size * 4        
-        if 'opt_color' in eMOGA['graph options']:
-            color_opt = eMOGA['graph options']['opt_color']
-
+    if 'obj_ord_3D' in graph_options:
+        obj_ord = graph_options['obj_ord_3D']
+    else:
+        obj_ord = [0, 1, 2]
+    if 'dot_size_3D' in graph_options:
+        dot_size = graph_options['dot_size_3D']
+    else:
+        dot_size = 1
+    if 'opt_dot_size_factor_3D' in graph_options:
+        opt_size = dot_size * graph_options['opt_dot_size_factor_3D']
+    else:
+        opt_size = dot_size * 4        
+    if 'opt_color' in graph_options:
+        color_opt = graph_options['opt_color']
 
     cmap = plt.colormaps[cmap]
     colors = cmap(np.linspace(0, 1, 256))  # Extract RGBA values
@@ -720,7 +739,7 @@ def plot_3D_Pareto_Front_plotly(eMOGA, plot_optims=True, cmap='winter'):
                 z=np.array(z[obj_ord[2]]),
                 mode='markers',
                 marker=dict(size=opt_size, color=color_opt, symbol='circle'),
-                name=p['Name'],
+                name=p['Label'],
                 showlegend=False
             ))
             fig.add_trace(go.Scatter3d(
@@ -728,7 +747,7 @@ def plot_3D_Pareto_Front_plotly(eMOGA, plot_optims=True, cmap='winter'):
                 y=np.array(z[obj_ord[1]]),
                 z=np.array(z[obj_ord[2]]),
                 mode='text',
-                text=[p['Name']],
+                text=[p['Label']],
                 textposition="middle right",
                 showlegend=False
             ))
@@ -776,9 +795,9 @@ def plot_3D_Pareto_Front_plotly(eMOGA, plot_optims=True, cmap='winter'):
             ),
         )
 
-    fig.show()
+    show_fig(block=False)
 
-    return fig # eMOGA
+    return fig
 
 # ------------------------------------------------------------------
 
@@ -819,7 +838,7 @@ def plot_2D_Pareto_Front(eMOGA, plot_optims=True, cmap='winter'):
     ax.scatter(pfront[:, obj_ord[0]], pfront[:, obj_ord[1]], s=dot_size, c=color, edgecolor='None', marker='.', cmap=cmap)
     notacio_cientifica(ax, axis='x')
     notacio_cientifica(ax, axis='y')
-    
+
     fontSize_labels = 9
 
     if plot_optims:
@@ -843,7 +862,7 @@ def plot_2D_Pareto_Front(eMOGA, plot_optims=True, cmap='winter'):
             else:
                 color_opt_i = color_opt
             ax.scatter(z[obj_ord[0]], z[obj_ord[1]], s=opt_size, edgecolor='None', marker='.', c=color_opt_i, zorder=3)
-            ax.text(z[obj_ord[0]], z[obj_ord[1]], p['Name'], fontsize=8, ha='right', va='bottom')
+            ax.text(z[obj_ord[0]] - incx, z[obj_ord[1]], p['Label'], fontsize=8, ha='right', va='bottom')
             if p['Name'].lower() == 'optimum':
                 optims = np.concatenate([np.array([z0]), np.array([z])], axis=0)
                 optims[:] = optims[:, obj_ord]
@@ -863,9 +882,9 @@ def plot_2D_Pareto_Front(eMOGA, plot_optims=True, cmap='winter'):
     fig.suptitle(superior_title, fontsize=12, y=0.925, va="top")
 
     ax.grid(True)
-    plt.show()
+    show_fig(block=False)
 
-    return #eMOGA
+    return fig
 
 
 # ------------------------------------------------------------------
@@ -877,15 +896,14 @@ def plot_Pareto_Front(eMOGA, plot_optims=True, cmap='winter', plotly=True):
     if n_obj == 3:
 
         if plotly:
-            plot_3D_Pareto_Front_plotly(eMOGA, plot_optims=plot_optims, cmap='winter')
+            fig = plot_3D_Pareto_Front_plotly(eMOGA, plot_optims=plot_optims, cmap='winter')
         else:
-            plot_3D_Pareto_Front(eMOGA, plot_optims=plot_optims, cmap=cmap)
+            fig = plot_3D_Pareto_Front(eMOGA, plot_optims=plot_optims, cmap=cmap)
     
     elif n_obj == 2:
+        fig = plot_2D_Pareto_Front(eMOGA, plot_optims=plot_optims, cmap=cmap)    
     
-        plot_2D_Pareto_Front(eMOGA, plot_optims=plot_optims, cmap=cmap)    
-
-    return # eMOGA
+    return fig
 
 
 # ------------------------------------------------------------------
@@ -904,6 +922,7 @@ def plot_Level_Diagrams(eMOGA, plot_optims=True,
     dot_size = 1
     opt_size = dot_size * 16
     color_opt = 'red'
+    opt_text_bgcolor = 'white'
 
     if 'graph options' in eMOGA:
         graph_options = eMOGA['graph options'].copy()
@@ -913,6 +932,8 @@ def plot_Level_Diagrams(eMOGA, plot_optims=True,
             opt_size = dot_size * graph_options['opt_dot_size_factor_2D']
         if 'opt_color' in eMOGA['graph options']:
             color_opt = eMOGA['graph options']['opt_color']
+        if 'opt_text_background_color' in eMOGA['graph options']:
+            opt_text_bgcolor = eMOGA['graph options']['opt_text_background_color']
 
     active_style = plt.rcParams["axes.facecolor"]
     if active_style in ["black", "#000000"]:
@@ -958,7 +979,21 @@ def plot_Level_Diagrams(eMOGA, plot_optims=True,
                 else:
                     color_opt_i = color_opt
                 axes[i].scatter(pfront[idx,i], d[idx], s=opt_size, color=color_opt_i, edgecolor='None', marker='.', label='z0')
-                axes[i].text(pfront[idx,i] + incx, d[idx] - incy, p['Name'], fontsize=9, color=color_opt_text, ha='left', va='top', fontweight='light')
+                # axes[i].text(pfront[idx,i] + incx, d[idx] - incy, p['Label'], fontsize=9, color=color_opt_text, backgroundcolor=opt_text_bgcolor, ha='left', va='top', fontweight='light')
+                axes[i].text(
+                    pfront[idx, i] + incx,
+                    d[idx] - incy,
+                    p['Label'],
+                    fontsize=9,
+                    color=color_opt_text,
+                    ha='left', va='top',
+                    fontweight='light',
+                    bbox=dict(
+                        boxstyle='square,pad=0.05',   # prova 0.00–0.15
+                        facecolor=opt_text_bgcolor,
+                        edgecolor='none'
+                    )
+                )
                 if mode_fosc: axes[i].grid(color="gray", linestyle="--", linewidth=0.75)
 
 
@@ -979,7 +1014,7 @@ def plot_Level_Diagrams(eMOGA, plot_optims=True,
 
     # Adjust the space between the plots
     plt.tight_layout()
-    # plt.show() # L'he llevat perquè si no, no podem modificar la figura en el notebook
+    show_fig(block=False)
 
     # ------------------------------------------------------------------
     # Level Diagrams for parameters
@@ -1015,7 +1050,53 @@ def plot_Level_Diagrams(eMOGA, plot_optims=True,
         fig2.suptitle(superior_title, fontsize=12, y=0.995, va="top")
 
         plt.tight_layout()
-        plt.show()
+        show_fig(block=False)
+
+    return fig, axes
+
+# ------------------------------------------------------------------
+
+def plot_evMOGA_evolution(eMOGA):
+
+    if 'time_Nit_gen' in eMOGA:
+
+        Nit = eMOGA['Nit'][0][0]
+
+        time_Nit_gen = eMOGA['time_Nit_gen'].flatten()
+        gens = np.arange(0, time_Nit_gen.size) * Nit
+        incr = np.diff(time_Nit_gen, prepend=time_Nit_gen[0])
+
+        plots = [
+            {
+                'y': eMOGA['Nind_A_Nit_gen'].flatten(),
+                'ylabel': "Number of solutions",
+                'title': f"Solutions on the Pareto front",
+                'color': '#1f77b4'
+            },
+            {
+                'y': incr,
+                'ylabel': 'Time (s)',
+                'title': f"Elapsed time every {Nit} generations",
+                'color': 'green'
+            }
+        ]
+
+        nplots = len(plots)
+        fig, axes = plt.subplots(nplots, 1, figsize=(7, 2.25 * nplots), sharex=True)
+        if nplots == 1:
+            axes = [axes]
+
+        for ax, plot in zip(axes, plots):
+            ax.plot(gens, plot['y'], linewidth=0.5, marker='o', markersize=3, color=plot['color'])
+            ax.set_ylabel(plot['ylabel'])
+            ax.set_title(plot['title'])
+            ax.grid(True)
+        axes[-1].set_xlabel('Generations')
+
+        plt.tight_layout()
+        show_fig(block=False)
+    else:
+        print("No evolution data found in eMOGA.")
 
     return fig, axes
 

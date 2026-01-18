@@ -1,3 +1,4 @@
+import time
 import numpy as np # type: ignore
 from tqdm import tqdm
 
@@ -9,6 +10,13 @@ def initialize(eMOGA):
 
     # ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
     # Setting parameters
+
+    if 't0' not in eMOGA.keys():
+        eMOGA['t0'] = time.perf_counter()
+
+    if 'Nit' in eMOGA.keys():
+        eMOGA['time_Nit_gen'] = []
+        eMOGA['Nind_A_Nit_gen'] = []
 
     if 'Nind_P' not in eMOGA.keys():
         eMOGA['Nind_P'] = 1000
