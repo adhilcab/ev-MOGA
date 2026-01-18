@@ -51,9 +51,9 @@ def fun_iteration_2obj(eMOGA):
     return(eMOGA)
 
 # ---------------------------------------------------------------
-# Iteration function (2obj):
+# Iteration function (3obj):
 
-def fun_iteration_3obj(eMOGA):
+def fun_iteration(eMOGA):
 
     if np.mod(eMOGA['gen_counter'], eMOGA['Nit']) == 0:
 
