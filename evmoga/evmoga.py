@@ -11,6 +11,9 @@ def initialize(eMOGA):
     # ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
     # Setting parameters
 
+    if 'save_results' not in eMOGA.keys():
+        eMOGA['save_results'] = False
+
     if 't0' not in eMOGA.keys():
         eMOGA['t0'] = time.perf_counter()
 
