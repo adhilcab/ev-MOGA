@@ -172,6 +172,8 @@ def MutRealDGausPond2(eMOGA, i):
     
     if 'constraintfun' in eMOGA.keys() and eMOGA['constraintfun'] is not None:
         hijo = eMOGA['constraintfun'](hijo, eMOGA)
+    else:
+        hijo = np.clip(hijo, eMOGA['searchspaceLB'], eMOGA['searchspaceUB'])
 
     eMOGA['ele_GA'][i] = hijo.copy()
 
@@ -196,6 +198,9 @@ def Lxov(eMOGA, i1, i2):
     if 'constraintfun' in eMOGA.keys() and eMOGA['constraintfun'] is not None:
         hijo1 = eMOGA['constraintfun'](hijo1, eMOGA)
         hijo2 = eMOGA['constraintfun'](hijo2, eMOGA)
+    else:
+        hijo1 = np.clip(hijo1, eMOGA['searchspaceLB'], eMOGA['searchspaceUB'])
+        hijo2 = np.clip(hijo2, eMOGA['searchspaceLB'], eMOGA['searchspaceUB'])
 
     eMOGA['ele_GA'][i1] = hijo1.copy()
     eMOGA['ele_GA'][i2] = hijo2.copy()
