@@ -82,7 +82,7 @@ evu.plot_Level_Diagrams(eMOGA, plot_params_LD=False)
 # ---------------------------------------------------------------------------------------
 # Comparing with the exact solution:
 
-mop3aux = loadmat("./evMOGAtoolbox/evMOGAtoolbox/mop3aux.mat")
+mop3aux = loadmat("./mat_files/mop3aux.mat")
 pfrontaux = mop3aux['pfront']
 
 fig = plt.figure(figsize=(7, 7))
